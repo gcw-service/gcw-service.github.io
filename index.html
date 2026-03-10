@@ -54,6 +54,17 @@
             .print-header { border-bottom: 1px solid #000; }
             .badge { background: none !important; color: #000 !important; font-weight: normal; }
         }
+
+        /* Apply print styles to the on-screen preview as well */
+        #printable-html-area .print-header {
+            border-bottom: 1px solid #000;
+            border-color: #000; /* Explicitly set for preview */
+        }
+        #printable-html-area .badge {
+            background: none !important;
+            color: #000 !important;
+            font-weight: normal;
+        }
         @media print {
             body * {
                 visibility: hidden;
@@ -87,8 +98,16 @@
             <h1 class="text-3xl font-medium mb-8 uppercase tracking-tighter">GCW <span class="gemini-blue">Service</span></h1>
             <form onsubmit="handleAuth(event)" class="space-y-4">
                 <input type="email" id="auth-email" placeholder="Email" class="gemini-input" required>
-                <input type="password" id="auth-pass" placeholder="Password" class="gemini-input" required>
-                <button type="submit" id="auth-main-btn" class="gemini-btn w-full py-4">Sign In</button>
+                <div class="relative">
+                    <input type="password" id="auth-pass" placeholder="Password" class="gemini-input pr-12" required>
+                    <button type="button" onclick="togglePasswordVisibility('auth-pass', 'auth-eye-icon')" class="absolute inset-y-0 right-0 px-4 flex items-center text-gray-500 hover:text-white" aria-label="Toggle password visibility">
+                        <svg id="auth-eye-icon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </button>
+                </div>
+                <div id="confirm-pass-container" class="relative hidden">
+                    <input type="password" id="auth-pass-confirm" placeholder="Confirm Password" class="gemini-input pr-12">
+                </div>
+                <button type="submit" id="auth-main-btn" class="gemini-btn w-full py-3">Sign In</button>
                 <p class="text-xs text-[#8e918f]">
                     <span id="auth-toggle-text">Need an account?</span> 
                     <button type="button" onclick="toggleAuthMode()" class="gemini-blue underline" id="auth-toggle-btn">Sign Up</button>
@@ -346,11 +365,24 @@
         let allServicers = [];
 
         // [ID_JS_TOGGLE_AUTH]
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(inputId.replace('pass', 'eye-icon'));
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7 .925-2.948 3.29-5.344 6.158-6.418M15.536 5.464A9.95 9.95 0 0118.85 8.148M9.172 9.172a3 3 0 00-2.058 2.058m2.058-2.058a3 3 0 012.058 2.058m-2.058-2.058L3 3m8.828 8.828l8.042 8.042"></path>`;
+            } else {
+                input.type = 'password';
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>`;
+            }
+        }
         function toggleAuthMode() {
             isSignup = !isSignup;
             document.getElementById('auth-main-btn').innerText = isSignup ? 'Create Account' : 'Sign In';
             document.getElementById('auth-toggle-text').innerText = isSignup ? 'Already have an account?' : 'Need an account?';
             document.getElementById('auth-toggle-btn').innerText = isSignup ? 'Sign In' : 'Sign Up';
+            document.getElementById('confirm-pass-container').classList.toggle('hidden', !isSignup);
+            document.getElementById('auth-pass-confirm').required = isSignup;
         }
 
         // [ID_JS_HANDLE_AUTH]
@@ -358,14 +390,24 @@
             event.preventDefault();
             const email = document.getElementById('auth-email').value.trim();
             const password = document.getElementById('auth-pass').value;
+            const confirmPassword = document.getElementById('auth-pass-confirm').value;
             const msg = document.getElementById('auth-msg');
             msg.classList.add('hidden');
             
             try {
                 let result;
                 if (isSignup) {
+                    if (password !== confirmPassword) {
+                        msg.innerText = "Passwords do not match.";
+                        msg.classList.remove('hidden');
+                        msg.className = "text-xs mt-4 text-red-500";
+                        return;
+                    }
                     result = await _supabase.auth.signUp({ email, password });
-                    if (!result.error) alert("Account created. Please sign in.");
+                    if (!result.error) {
+                        alert("Account created. Please check your email to verify your account before signing in.");
+                        toggleAuthMode(); // Switch back to sign-in view
+                    }
                 } else {
                     result = await _supabase.auth.signInWithPassword({ email, password });
                 }
