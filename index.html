@@ -1,41 +1,757 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connection Test</title>
-<style>
-body {
-background-color: #121212;
-color: #ffffff;
-font-family: sans-serif;
-display: flex;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-height: 100vh;
-margin: 0;
-text-align: center;
-}
-.status-card {
-border: 2px solid #4e97ff;
-background-color: #1e1f20;
-padding: 2rem;
-border-radius: 20px;
-box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-max-width: 80%;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCW Service</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .hidden { display: none !important; }
+        body { background-color: #131314; color: #e3e3e3; }
+        .gemini-card { background-color: #1e1f20; border: 1px solid #333537; transition: all 0.2s ease; }
+        .gemini-input { background-color: #131314; border: 1px solid #444746; color: white; width: 100%; border-radius: 0.75rem; padding: 0.75rem; outline: none; }
+        .gemini-input:focus { border-color: #4e97ff; }
+        .gemini-blue { color: #4e97ff; }
+        .gemini-btn { background-color: #4e97ff; color: #000; border-radius: 9999px; font-weight: bold; transition: all 0.2s; }
+        .gemini-btn:hover { opacity: 0.9; }
+        .admin-danger-btn { background-color: transparent; border: 1px solid #442726; color: #ff5252; border-radius: 9999px; font-size: 10px; padding: 0.5rem 1rem; transition: all 0.2s; }
+        .admin-danger-btn:hover { background-color: #442726; }
+        select.gemini-input option { background-color: #1e1f20; color: white; }
+    </style>
 </head>
-<body>
-<div class="status-card">
-<h1>Browser is Clear</h1>
-<p>If you see this page, the redirect is not happening at the domain level.</p>
-<p id="load-time"></p>
-</div>
-<script>
-document.getElementById('load-time').innerText = "Loaded at: " + new Date().toLocaleString();
-</script>
+<body class="min-h-screen font-sans">
+
+    <div id="auth-screen" class="fixed inset-0 bg-[#131314] z-[100] flex items-center justify-center p-6 text-center">
+        <div class="w-full max-w-sm">
+            <h1 class="text-3xl font-medium mb-8 uppercase tracking-tighter">GCW <span class="gemini-blue">Service</span></h1>
+            <form onsubmit="handleAuth(event)" class="space-y-4">
+                <input type="email" id="auth-email" placeholder="Email" class="gemini-input" required>
+                <input type="password" id="auth-pass" placeholder="Password" class="gemini-input" required>
+                <button type="submit" id="auth-main-btn" class="gemini-btn w-full py-4">Sign In</button>
+                <p class="text-xs text-[#8e918f]">
+                    <span id="auth-toggle-text">Need an account?</span> 
+                    <button type="button" onclick="toggleAuthMode()" class="gemini-blue underline" id="auth-toggle-btn">Sign Up</button>
+                </p>
+            </form>
+            <p id="auth-msg" class="text-xs mt-4 hidden"></p>
+        </div>
+    </div>
+
+    <div id="app-content" class="hidden p-4 md:p-8">
+        <header class="max-w-5xl mx-auto flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-2xl font-normal">GCW <span class="gemini-blue font-bold tracking-tight">Service</span></h1>
+                <div id="user-display" class="text-[#8e918f] text-xs mt-1 flex items-center gap-2">Checking access...</div>
+            </div>
+            <div id="current-date" class="text-sm text-gray-500 font-mono absolute top-8 left-1/2 -translate-x-1/2"></div>
+            <div class="flex gap-4 items-center">
+                <button id="admin-farm-btn" class="hidden text-xs bg-gray-800 px-4 py-2 rounded-full border border-gray-700 text-green-400 hover:bg-gray-700" onclick="showFarmManagement()">Manage Farms</button>
+                <button id="admin-user-btn" class="hidden text-xs bg-gray-800 px-4 py-2 rounded-full border border-gray-700 text-blue-400 hover:bg-gray-700" onclick="showUserManagement()">Manage Users</button>
+                <button id="add-machine-btn" class="hidden gemini-btn px-6 py-2" onclick="openAddModal()">+ Add</button>
+                <button onclick="openSettingsModal()" class="text-xs text-[#8e918f] hover:text-white">Settings</button>
+                <button onclick="handleLogout()" class="text-xs text-[#8e918f] hover:text-white">Sign Out</button>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto">
+            <div id="unassigned-msg" class="hidden text-center py-20">
+                <h2 class="text-xl text-[#8e918f]">Account Pending.</h2>
+                <p class="text-sm mt-2">An admin needs to assign your farm before you can see machinery.</p>
+            </div>
+            <div id="machinery-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </main>
+    </div>
+
+    <div id="details-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
+        <div class="gemini-card w-full max-w-lg rounded-3xl p-8 shadow-2xl">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 id="details-name" class="text-3xl font-bold tracking-tight">Machine Name</h2>
+                    <p id="details-farm-id" class="text-[10px] text-gray-500 uppercase mt-1"></p>
+                </div>
+                <button onclick="closeDetailsModal()" class="text-3xl leading-none text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <div id="details-tabs" class="hidden flex gap-2 mb-6 border-b border-gray-800">
+                <button id="tab-regular" onclick="switchDetailsTab('regular')" class="details-tab-btn px-4 py-2 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-white transition-colors">View</button>
+                <button id="tab-edit" onclick="switchDetailsTab('edit')" class="details-tab-btn hidden px-4 py-2 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-white transition-colors">Edit</button>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Regular Tab Content -->
+                <div id="details-regular-content">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-black/40 p-6 rounded-2xl border border-gray-800">
+                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Current Usage</p>
+                            <div class="flex items-baseline gap-2" title="Days since last service">
+                                <span id="details-usage" class="text-5xl font-black text-white">0</span>
+                                <span class="text-sm text-gray-400 font-bold">DAYS</span>
+                            </div>
+                        </div>
+                        <div id="details-service-card" class="bg-black/40 p-6 rounded-2xl border border-gray-800">
+                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Next Service In</p>
+                            <div class="flex items-baseline gap-2">
+                                <span id="details-service-due" class="text-5xl font-black text-white">N/A</span>
+                                <span class="text-sm text-gray-400 font-bold">DAYS</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="details-notes-content" class="mt-4 bg-black/20 p-4 rounded-xl border border-gray-800/50 text-sm text-gray-300"></div>
+                    <div class="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+                        <div class="flex gap-2">
+                            <textarea id="add-note-textarea" placeholder="Add a quick note..." rows="1" class="gemini-input text-sm py-2"></textarea>
+                            <button onclick="addMachineNote()" class="gemini-btn text-sm px-4">Save Note</button>
+                        </div>
+                        <div class="flex items-center justify-center gap-2">
+                            <input type="date" id="log-service-date" class="gemini-input py-2 text-sm w-auto bg-black/40 border-gray-800">
+                            <button onclick="logService()" class="bg-green-600/20 text-green-400 border border-green-900/80 text-sm font-bold py-3 rounded-lg hover:bg-green-600/30 px-6 flex-grow">Log Service</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Edit Tab Content (Admin Only) -->
+                <div id="details-edit-content" class="hidden space-y-4">
+                    <div class="space-y-3 text-left">
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
+                            <input type="text" id="update-name-input" class="gemini-input py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase ml-2">Move to Farm</label>
+                            <select id="update-farm-select" class="gemini-input py-2 text-sm"></select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] text-gray-500 uppercase ml-2">Service Interval (days)</label>
+                                <input type="number" id="update-service-interval-input" class="gemini-input py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-500 uppercase ml-2">Last Service Date</label>
+                                <input type="date" id="update-last-service-date-input" class="gemini-input py-2 text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <textarea id="update-notes-input" placeholder="Service notes, operational quirks, etc." rows="3" class="gemini-input py-2 text-sm"></textarea>
+                        </div>
+                        <button onclick="updateMachineRecord()" class="gemini-btn w-full py-2 text-sm">Save All Changes</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-4 border-t border-gray-800/50">
+                        <p class="text-[10px] text-gray-600 font-bold uppercase">Danger Zone</p>
+                        <button id="delete-machine-btn" onclick="deleteMachine()" class="admin-danger-btn">Delete Vehicle</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="farm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
+        <div class="gemini-card w-full max-w-2xl rounded-3xl p-8 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between mb-6">
+                <h2 class="text-2xl font-bold text-green-400">Farm Directory</h2>
+                <button onclick="closeFarmModal()" class="text-2xl hover:text-white">&times;</button>
+            </div>
+            <div class="bg-black/30 p-4 rounded-2xl mb-6 border border-gray-800">
+                <h3 class="text-xs font-bold uppercase text-gray-500 mb-3">Add New Farm</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="new-farm-name" placeholder="Farm Name" class="gemini-input py-2 text-sm">
+                    <button onclick="createNewFarm()" class="bg-green-600 text-black font-bold px-6 py-2 rounded-xl text-sm">Create</button>
+                </div>
+            </div>
+            <div id="farm-list" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <div id="user-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
+        <div class="gemini-card w-full max-w-2xl rounded-3xl p-8 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between mb-6">
+                <h2 class="text-2xl font-bold gemini-blue">User Assignments</h2>
+                <button onclick="closeUserModal()" class="text-2xl hover:text-white">&times;</button>
+            </div>
+            <div id="user-list" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <div id="add-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
+        <div class="gemini-card w-full max-w-md rounded-3xl p-8">
+            <div class="flex justify-between mb-6">
+                <h2 class="text-2xl font-bold gemini-blue">Add Machinery</h2>
+                <button onclick="closeAddModal()" class="text-2xl hover:text-white">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
+                    <input type="text" id="new-machine-name" placeholder="e.g. Case IH Magnum" class="gemini-input">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase ml-2">Assign to Farm</label>
+                    <select id="new-machine-farm-select" class="gemini-input">
+                        <option value="">Loading Farms...</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase ml-2">Service Interval (days)</label>
+                        <input type="number" id="new-machine-service-interval" placeholder="e.g. 250" class="gemini-input">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase ml-2">Last Service Date</label>
+                        <input type="date" id="new-machine-last-service-date" class="gemini-input">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase ml-2">Notes (Optional)</label>
+                    <textarea id="new-machine-notes" rows="2" placeholder="Initial notes..." class="gemini-input"></textarea>
+                    </select>
+                </div>
+                <button onclick="saveMachine()" class="gemini-btn w-full py-4 mt-4">Save Machine</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[60]">
+        <div class="gemini-card w-full max-w-md rounded-3xl p-8">
+            <div class="flex justify-between mb-6">
+                <h2 class="text-2xl font-bold gemini-blue">User Settings</h2>
+                <button onclick="closeSettingsModal()" class="text-2xl hover:text-white">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] text-gray-500 uppercase ml-2">Nickname</label>
+                    <input type="text" id="update-nickname-input" placeholder="e.g. Johnny" class="gemini-input">
+                </div>
+                <button onclick="updateUserNickname()" class="gemini-btn w-full py-4 mt-4">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const SUPABASE_URL = 'https://uenxlkvjrvxtbphwbhnh.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_mxB4ITMOC-jCevNGJabtbw_lXmvplAJ';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        let isSignup = false;
+        let myProfile = null;
+        let selectedMachineId = null;
+        let allFarms = [];
+
+        // [ID_JS_TOGGLE_AUTH]
+        function toggleAuthMode() {
+            isSignup = !isSignup;
+            document.getElementById('auth-main-btn').innerText = isSignup ? 'Create Account' : 'Sign In';
+            document.getElementById('auth-toggle-text').innerText = isSignup ? 'Already have an account?' : 'Need an account?';
+            document.getElementById('auth-toggle-btn').innerText = isSignup ? 'Sign In' : 'Sign Up';
+        }
+
+        // [ID_JS_HANDLE_AUTH]
+        async function handleAuth(event) {
+            event.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-pass').value;
+            const msg = document.getElementById('auth-msg');
+            msg.classList.add('hidden');
+            
+            try {
+                let result;
+                if (isSignup) {
+                    result = await _supabase.auth.signUp({ email, password });
+                    if (!result.error) alert("Account created. Please sign in.");
+                } else {
+                    result = await _supabase.auth.signInWithPassword({ email, password });
+                }
+
+                if (result.error) {
+                    msg.innerText = result.error.message;
+                    msg.classList.remove('hidden');
+                    msg.className = "text-xs mt-4 text-red-500";
+                } else {
+                    checkSession();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // [ID_JS_CHECK_SESSION]
+        async function checkSession() {
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session) {
+                    const { data: profile, error } = await _supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+                    if (error || !profile) {
+                        showIdMismatchError(session.user.id);
+                        return;
+                    }
+                    myProfile = profile;
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('app-content').classList.remove('hidden');
+                    const displayName = profile.nickname || profile.email;
+                    const adminBadge = profile.is_admin ? '<span class="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Admin</span>' : '';
+                    document.getElementById('user-display').innerHTML = `${displayName} ${adminBadge}`;
+                    if (profile.is_admin) {
+                        document.getElementById('admin-user-btn').classList.remove('hidden');
+                        document.getElementById('admin-farm-btn').classList.remove('hidden');
+                        document.getElementById('add-machine-btn').classList.remove('hidden');
+                    }
+                    await loadFarms(); 
+                    loadFleet();
+                } else {
+                    document.getElementById('auth-screen').classList.remove('hidden');
+                    document.getElementById('app-content').classList.add('hidden');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // [ID_JS_LOAD_FARMS]
+        async function loadFarms() {
+            const { data } = await _supabase.from('farms').select('*').order('name');
+            allFarms = data || [];
+            const select = document.getElementById('new-machine-farm-select');
+            if (select) {
+                select.innerHTML = '<option value="">Select a Farm</option>' + 
+                    allFarms.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            }
+        }
+
+        // [ID_JS_MISMATCH_ERROR]
+        function showIdMismatchError(id) {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-content').classList.remove('hidden');
+            document.getElementById('user-display').innerHTML = `
+                <div class="bg-red-900/20 border border-red-500 p-4 rounded-xl mt-4 text-left">
+                    <p class="text-red-500 font-bold">Profile Policy/ID Error</p>
+                    <code class="block bg-black p-2 mt-2 rounded text-blue-400 select-all text-[10px]">${id}</code>
+                    <button onclick="handleLogout()" class="mt-2 text-xs underline">Log Out</button>
+                </div>`;
+        }
+
+        // [ID_JS_LOAD_FLEET]
+        async function loadFleet() {
+            if (!myProfile.farm_id && !myProfile.is_admin) {
+                document.getElementById('unassigned-msg').classList.remove('hidden');
+                document.getElementById('machinery-grid').innerHTML = "";
+                return;
+            }
+            document.getElementById('unassigned-msg').classList.add('hidden');
+            let query = _supabase.from('machinery').select('*');
+            if (!myProfile.is_admin) query = query.eq('farm_id', myProfile.farm_id);
+            
+            // Fetch data without ordering from the database
+            const { data } = await query;
+
+            // Sort the data in JavaScript based on service priority
+            (data || []).sort((a, b) => {
+                const calculatePriority = (machine) => {
+                    if (!machine.service_interval || machine.service_interval <= 0) {
+                        return -1; // Machines without an interval go to the bottom.
+                    }
+                    let current_hours = 0;
+                    if (machine.last_service_date) {
+                        const lastServiceTime = new Date(machine.last_service_date).getTime();
+                        const now = new Date().getTime();
+                        current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
+                    }
+                    return current_hours / machine.service_interval;
+                };
+
+                const priorityA = calculatePriority(a);
+                const priorityB = calculatePriority(b);
+
+                return priorityB - priorityA; // Sort descending (highest priority first)
+            });
+
+            const grid = document.getElementById('machinery-grid');
+            grid.innerHTML = (data || []).map(m => { // Now map over the sorted data
+                const farmName = allFarms.find(f => f.id === m.farm_id)?.name || 'Unknown Farm';
+                let serviceStatus = { color: 'bg-gray-700', text: 'N/A' };
+                
+                // --- REAL-TIME USAGE CALCULATION ---
+                let current_hours = 0;
+                if (m.last_service_date) {
+                    const lastServiceTime = new Date(m.last_service_date).getTime();
+                    const now = new Date().getTime();
+                    current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
+                }
+                // --- END REAL-TIME CALCULATION ---
+
+                let lastServiceText = "No service history";
+                let dueText = "Interval not set";
+                let dueClass = "";
+                if (m.service_interval > 0) {
+                    const hoursToService = m.service_interval - current_hours;
+                    if (hoursToService <= 0) {
+                        serviceStatus = { color: 'bg-red-500', text: 'SERVICE DUE' };
+                    } else if (hoursToService <= 50) {
+                        serviceStatus = { color: 'bg-yellow-500', text: 'SERVICE SOON' };
+                    } else {
+                        serviceStatus = { color: 'bg-green-500', text: `DUE IN ${hoursToService} DAYS` };
+                    }
+
+                    if (m.last_service_date) {
+                        const lastServiceDate = new Date(m.last_service_date);
+                        lastServiceText = `Last Service: ${lastServiceDate.toLocaleDateString()}`;
+                        
+                        const daysRemaining = m.service_interval - current_hours;
+                        
+                        if (daysRemaining <= 0) {
+                            dueText = `Due ${Math.abs(daysRemaining)} days ago`;
+                            dueClass = "text-red-400";
+                        } else {
+                            dueText = `Due in ~${daysRemaining} days`;
+                            if (daysRemaining <= 7) dueClass = "text-yellow-400";
+                        }
+                    } else {
+                        lastServiceText = "No service on record";
+                        dueText = `Due in ${m.service_interval} days`;
+                    }
+                }
+                return `
+                <div onclick='openDetailsModal(${JSON.stringify(m)})' 
+                     class="gemini-card rounded-3xl p-6 group flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold group-hover:text-blue-400 transition-colors cursor-pointer">${m.name}</h3>
+                        <p class="text-3xl font-black mt-2" title="Current Days / Service Interval">
+                            ${m.service_interval
+                                ? `${current_hours} <span class="text-3xl text-gray-500">/ ${m.service_interval}</span>`
+                                : (m.total_hours || 0)
+                            }
+                            <span class="text-xs text-gray-500">${m.service_interval ? 'CURRENT DAYS' : 'TOTAL DAYS'}</span>
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-800/50">
+                        <div class="flex justify-between items-center">
+                            <p class="text-[10px] text-gray-600 uppercase font-bold">${farmName}</p>
+                            <span class="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">View Details &rarr;</span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-2">
+                            <p>${lastServiceText}</p>
+                            <p class="font-bold ${dueClass}">${dueText}</p>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // [ID_JS_MODAL_CONTROLS]
+        function openAddModal() { loadFarms(); document.getElementById('add-modal').classList.remove('hidden'); }
+        function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); } 
+        function openDetailsModal(machine) {
+            selectedMachineId = machine.id;
+
+            // Use the same real-time calculation as the main grid for consistency
+            let current_hours = 0;
+            if (machine.last_service_date) {
+                const lastServiceTime = new Date(machine.last_service_date).getTime();
+                const now = new Date().getTime();
+                current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
+            }
+
+            const farmName = allFarms.find(f => f.id === machine.farm_id)?.name || machine.farm_id;
+            document.getElementById('details-name').innerText = machine.name;
+
+            const detailsUsageEl = document.getElementById('details-usage');
+            if (machine.service_interval > 0) {
+                detailsUsageEl.innerText = current_hours;
+            } else {
+                detailsUsageEl.innerText = current_hours;
+            }
+            document.getElementById('details-farm-id').innerText = `Location: ${farmName}`;
+            
+            // Service info
+            const serviceDueEl = document.getElementById('details-service-due');
+            const serviceCardEl = document.getElementById('details-service-card');
+            if (machine.service_interval > 0) {
+                const daysToService = machine.service_interval - current_hours;
+                serviceDueEl.innerText = daysToService;;
+                serviceDueEl.className = 'text-5xl font-black'; // reset color
+                if (daysToService <= 0) serviceDueEl.classList.add('text-red-500');
+                else if (daysToService <= 7) serviceDueEl.classList.add('text-yellow-500');
+                else serviceDueEl.classList.add('text-green-500');
+                serviceCardEl.classList.remove('hidden');
+            } else {
+                serviceCardEl.classList.add('hidden');
+            }
+
+            // Notes
+            document.getElementById('details-notes-content').innerText = machine.notes || 'No notes for this machine.';
+
+            // Set edit fields
+            document.getElementById('update-name-input').value = machine.name;
+            document.getElementById('update-service-interval-input').value = machine.service_interval || '';
+            document.getElementById('update-last-service-date-input').value = machine.last_service_date || '';
+            document.getElementById('update-notes-input').value = machine.notes || '';
+            document.getElementById('add-note-textarea').value = ''; // Clear quick note field
+            document.getElementById('update-farm-select').innerHTML = 
+                '<option value="">Select a Farm</option>' + 
+                allFarms.map(f => `<option value="${f.id}" ${f.id === machine.farm_id ? 'selected' : ''}>${f.name}</option>`).join('');
+            
+            // Show tabs for admins
+            const tabsContainer = document.getElementById('details-tabs');
+            const tabEdit = document.getElementById('tab-edit');
+            if (myProfile.is_admin) {
+                tabsContainer.classList.remove('hidden');
+                tabEdit.classList.remove('hidden');
+            } else {
+                tabsContainer.classList.add('hidden');
+                tabEdit.classList.add('hidden');
+            }
+            
+            // Reset to regular tab
+            switchDetailsTab('regular');
+            document.getElementById('log-service-date').value = new Date().toISOString().split('T')[0];
+            
+            document.getElementById('details-modal').classList.remove('hidden');
+        }
+        function closeDetailsModal() { selectedMachineId = null; document.getElementById('details-modal').classList.add('hidden'); }
+        
+        function switchDetailsTab(tab) {
+            const regularContent = document.getElementById('details-regular-content');
+            const editContent = document.getElementById('details-edit-content');
+            const tabRegularBtn = document.getElementById('tab-regular');
+            const tabEditBtn = document.getElementById('tab-edit');
+            
+            if (tab === 'regular') {
+                regularContent.classList.remove('hidden');
+                editContent.classList.add('hidden');
+                tabRegularBtn.classList.add('border-blue-500', 'text-white');
+                tabRegularBtn.classList.remove('border-transparent', 'text-gray-400');
+                tabEditBtn.classList.remove('border-blue-500', 'text-white');
+                tabEditBtn.classList.add('border-transparent', 'text-gray-400');
+            } else if (tab === 'edit') {
+                regularContent.classList.add('hidden');
+                editContent.classList.remove('hidden');
+                tabEditBtn.classList.add('border-blue-500', 'text-white');
+                tabEditBtn.classList.remove('border-transparent', 'text-gray-400');
+                tabRegularBtn.classList.remove('border-blue-500', 'text-white');
+                tabRegularBtn.classList.add('border-transparent', 'text-gray-400');
+            }
+        }
+        
+        function closeUserModal() { document.getElementById('user-modal').classList.add('hidden'); }
+        function closeFarmModal() { document.getElementById('farm-modal').classList.add('hidden'); }
+
+        function openSettingsModal() {
+            document.getElementById('update-nickname-input').value = myProfile.nickname || '';
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+        function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+
+        // [ID_JS_SAVE_MACHINE]
+        async function saveMachine() {
+            const name = document.getElementById('new-machine-name').value;
+            const farm_id = document.getElementById('new-machine-farm-select').value;
+            const service_interval = document.getElementById('new-machine-service-interval').value;
+            const last_service_date = document.getElementById('new-machine-last-service-date').value;
+            const notes = document.getElementById('new-machine-notes').value;
+            if (!name || !farm_id) return alert("Name and Farm selection required.");
+            const { error } = await _supabase.from('machinery').insert([{ 
+                name,
+                farm_id,
+                service_interval: parseInt(service_interval) || null,
+                last_service_date: last_service_date || null,
+                notes
+            }]);
+            if (error) alert(error.message); else { closeAddModal(); loadFleet(); }
+        }
+
+        // [ID_JS_UPDATE_MACHINE]
+       async function updateMachineRecord() {
+            if (!selectedMachineId) return;
+            const newName = document.getElementById('update-name-input').value;
+            const newFarmId = document.getElementById('update-farm-select').value;
+            const newServiceInterval = document.getElementById('update-service-interval-input').value;
+            const newLastServiceDate = document.getElementById('update-last-service-date-input').value;
+            const newNotes = document.getElementById('update-notes-input').value;
+
+            const { error } = await _supabase.from('machinery')
+                .update({ 
+                    name: newName,
+                    farm_id: newFarmId,
+                    service_interval: parseInt(newServiceInterval) || null,
+                    last_service_date: newLastServiceDate || null,
+                    notes: newNotes
+                })
+                .eq('id', selectedMachineId);
+
+            if (error) alert(error.message); 
+            else { alert("Machine updated."); closeDetailsModal(); loadFleet(); }
+        }
+
+        // [ID_JS_LOG_SERVICE]
+        async function logService() {
+            if (!selectedMachineId) return;
+            const id = selectedMachineId;
+            const serviceDate = document.getElementById('log-service-date').value;
+            if (!confirm(`This will reset the machine's current usage to 0 and set the service date to ${serviceDate}. Proceed?`)) return;
+            
+            // Calculate days passed since the service was logged
+            const serviceDateTime = new Date(serviceDate).getTime();
+            const now = new Date().getTime();
+            const diffTime = Math.max(0, now - serviceDateTime); // Ensure no negative time
+            const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            const { data: machine, error: fetchError } = await _supabase
+                .from('machinery')
+                .select('total_hours')
+                .eq('id', id)
+                .single();
+            
+            if (fetchError) {
+                return alert("Could not fetch machine data: " + fetchError.message);
+            }
+            
+            // The new total hours should be the hours at last service plus the days that have passed since.
+            const newTotalHours = (machine.total_hours || 0) + daysPassed;
+            
+            const { error } = await _supabase.from('machinery')
+                .update({ 
+                    last_service_date: serviceDate,
+                    hours_at_last_service: machine.total_hours, // This becomes the new baseline
+                    total_hours: newTotalHours // We update the total hours to reflect the time passed
+                })
+                .eq('id', id);
+            if (error) alert(error.message); else { alert("Service logged successfully!"); closeDetailsModal(); loadFleet(); }
+        }
+
+        // [ID_JS_ADD_NOTE]
+        async function addMachineNote() {
+            const newNoteText = document.getElementById('add-note-textarea').value.trim();
+            if (!newNoteText) return;
+
+            const { data: machine } = await _supabase.from('machinery').select('notes').eq('id', selectedMachineId).single();
+            if (!machine) return alert("Could not find machine.");
+
+            const timestamp = new Date().toLocaleString();
+            const formattedNewNote = `[${timestamp}] ${newNoteText}`;
+            const updatedNotes = machine.notes ? `${formattedNewNote}\n${machine.notes}` : formattedNewNote;
+
+            const { error } = await _supabase.from('machinery').update({ notes: updatedNotes }).eq('id', selectedMachineId);
+            if (error) alert(error.message); else { alert("Note added."); closeDetailsModal(); loadFleet(); }
+        }
+
+        // [ID_JS_DELETE_MACHINE]
+        async function deleteMachine() {
+            if (!selectedMachineId || !confirm("Remove this machine?")) return;
+            const { error } = await _supabase.from('machinery').delete().eq('id', selectedMachineId);
+            if (error) alert(error.message); else { closeDetailsModal(); loadFleet(); }
+        }
+
+        // [ID_JS_FARM_MGMT]
+        async function showFarmManagement() {
+            await loadFarms();
+            const list = document.getElementById('farm-list');
+            list.innerHTML = allFarms.map(f => `
+                <div class="flex items-center justify-between p-4 bg-[#131314] rounded-2xl border border-gray-800">
+                    <div class="flex-1 mr-4">
+                        <input type="text" id="edit-farm-name-${f.id}" value="${f.name}" 
+                               class="bg-transparent border-none text-white font-bold text-sm focus:ring-0 w-full">
+                        <p class="text-[10px] text-gray-500 font-mono">${f.id}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="renameFarm('${f.id}')" class="text-[10px] bg-green-900/20 text-green-400 px-3 py-1 rounded-lg border border-green-800">Rename</button>
+                        <button onclick="copyToClipboard('${f.id}')" class="text-[10px] bg-gray-800 text-blue-400 px-3 py-1 rounded-lg border border-gray-700">ID</button>
+                    </div>
+                </div>`).join('');
+            document.getElementById('farm-modal').classList.remove('hidden');
+        }
+
+        async function renameFarm(farmId) {
+            const newName = document.getElementById(`edit-farm-name-${farmId}`).value.trim();
+            if (!newName) return;
+            const { error } = await _supabase.from('farms').update({ name: newName }).eq('id', farmId);
+            if (error) alert(error.message); else { alert("Farm renamed."); loadFarms(); }
+        }
+
+        async function createNewFarm() {
+            const name = document.getElementById('new-farm-name').value.trim();
+            if (!name) return alert("Farm name required.");
+            const { error } = await _supabase.from('farms').insert([{ name }]);
+            if (error) alert(error.message); else { document.getElementById('new-farm-name').value = ""; showFarmManagement(); }
+        }
+
+        // [ID_JS_CREATE_FARM]
+        async function createNewFarm() {
+            const name = document.getElementById('new-farm-name').value.trim();
+            if (!name) return alert("Farm name required.");
+            const { error } = await _supabase.from('farms').insert([{ name }]);
+            if (error) alert(error.message); else { document.getElementById('new-farm-name').value = ""; showFarmManagement(); }
+        }
+
+        // [ID_JS_UTILS]
+        function copyToClipboard(text) { navigator.clipboard.writeText(text); alert("ID copied."); }
+
+        // [ID_JS_USER_MGMT]
+        async function showUserManagement() {
+            await loadFarms(); // Ensure farm data is fresh
+            const { data: users, error } = await _supabase.from('profiles').select('*').order('email');
+            if (error) return;
+            const list = document.getElementById('user-list');
+            list.innerHTML = (users || []).map(u => {
+                const currentFarm = allFarms.find(f => f.id === u.farm_id);
+                return `
+                <div class="flex items-center justify-between p-4 bg-[#131314] rounded-2xl border border-gray-800/80">
+                    <div class="flex-1 pr-4">
+                        <div class="flex items-center gap-2 mb-1">
+                            <p class="font-bold text-sm">${u.nickname || u.email}</p>
+                            <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${u.is_admin ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-700 text-gray-400'}">${u.is_admin ? 'Admin' : 'User'}</span>
+                        </div>
+                        ${u.nickname ? `<p class="text-xs text-gray-500 font-mono">${u.email}</p>` : ''}
+                        <p class="text-[10px] text-gray-500 uppercase mt-2">Current Farm: ${currentFarm ? currentFarm.name : 'None'}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="user-farm-select-${u.id}" class="text-[10px] p-2 bg-black rounded border border-gray-700 w-32">
+                            <option value="">No Farm (Clear)</option>
+                            ${allFarms.map(f => `<option value="${f.id}" ${u.farm_id === f.id ? 'selected' : ''}>${f.name}</option>`).join('')}
+                        </select>
+                        <button id="update-btn-${u.id}" onclick="updateUserFarm('${u.id}')" class="text-[10px] bg-blue-600 px-3 py-1 rounded-lg hover:bg-blue-500 transition-colors">Update</button>
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('user-modal').classList.remove('hidden');
+        }
+
+        // [ID_JS_UPDATE_USER_FARM]
+        async function updateUserFarm(userId) {
+            const btn = document.getElementById(`update-btn-${userId}`);
+            const selectEl = document.getElementById(`user-farm-select-${userId}`);
+            const farmId = selectEl.value || null;
+            btn.disabled = true;
+            btn.innerText = "Wait...";
+            const { data, error } = await _supabase.from('profiles').update({ farm_id: farmId }).eq('id', userId).select();
+            if (error) {
+                alert("Update failed: " + error.message);
+                btn.disabled = false;
+                btn.innerText = "Update";
+            } else {
+                if (userId === myProfile.id) { myProfile = data[0]; loadFleet(); }
+                await showUserManagement(); 
+                alert("User Assignment Updated Successfully");
+            }
+        }
+
+        // [ID_JS_UPDATE_USER_NICKNAME]
+        async function updateUserNickname() {
+            const newNickname = document.getElementById('update-nickname-input').value.trim();
+            const { data, error } = await _supabase.from('profiles')
+                .update({ nickname: newNickname })
+                .eq('id', myProfile.id)
+                .select()
+                .single();
+
+            if (error) { alert("Update failed: " + error.message); } 
+            else { myProfile = data; checkSession(); closeSettingsModal(); alert("Nickname updated!"); }
+        }
+
+        // [ID_JS_LOGOUT]
+        async function handleLogout() { await _supabase.auth.signOut(); location.reload(); }
+
+        function displayDate() {
+            const date = new Date();
+            document.getElementById('current-date').innerText = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        window.onload = () => { checkSession(); displayDate(); };
+    </script>
 </body>
 </html>
