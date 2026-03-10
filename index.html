@@ -17,8 +17,65 @@
         .gemini-btn:hover { opacity: 0.9; }
         .admin-danger-btn { background-color: transparent; border: 1px solid #442726; color: #ff5252; border-radius: 9999px; font-size: 10px; padding: 0.5rem 1rem; transition: all 0.2s; }
         .admin-danger-btn:hover { background-color: #442726; }
+
+        /* --- Print Styles --- */
+        .print-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            background-color: #fff; /* White background for printing */
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 1rem;
+        }
+        .print-header {
+            border-bottom: 3px solid #cc0000; /* Massey Red accent */
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        .print-container table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .print-container th { background-color: #f4f4f4; text-align: left; padding: 12px; border-bottom: 2px solid #ddd; }
+        .print-container td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: top; word-wrap: break-word; }
+        .col-date { width: 15%; }
+        .col-meter { width: 15%; }
+        .col-type { width: 12%; }
+        .col-provider { width: 20%; }
+        .col-notes { width: 38%; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; }
+        .minor { background: #e3f2fd; color: #1976d2; }
+        .major { background: #fff3e0; color: #f57c00; }
+
+        @page {
+            size: auto;
+            margin: 0; /* Remove browser-added headers and footers */
+        }
+
+        @media print {
+            .print-header { border-bottom: 1px solid #000; }
+            .badge { background: none !important; color: #000 !important; font-weight: normal; }
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #details-print-content, #details-print-content * {
+                visibility: visible;
+            }
+            #details-print-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .print-container {
+                box-shadow: none; border: none;
+            }
+            #details-print-content button {
+                display: none;
+            }
+        }
         select.gemini-input option { background-color: #1e1f20; color: white; }
-        .note-bubble { max-width: 90%; width: fit-content; }
+        .note-bubble { max-width: 90%; width: fit-content; overflow-wrap: break-word; }
         @media print {
         }
     </style>
@@ -100,32 +157,27 @@
                 <div id="details-edit-content" class="hidden space-y-4">
                     <div class="space-y-3 text-left">
                         <div>
-                            <label class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
                             <label for="update-name-input" class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
                             <input type="text" id="update-name-input" class="gemini-input py-2 text-sm">
                         </div>
                         <div>
-                            <label class="text-[10px] text-gray-500 uppercase ml-2">Move to Farm</label>
                             <label for="update-farm-select" class="text-[10px] text-gray-500 uppercase ml-2">Move to Farm</label>
                             <select id="update-farm-select" class="gemini-input py-2 text-sm"></select>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="col-span-2 sm:col-span-1">
                                 <label class="text-[10px] text-gray-500 uppercase ml-2">Current Meter</label>
-                                <label for="update-current-meter-input" class="text-[10px] text-gray-500 uppercase ml-2">Current Meter</label>
                                 <input type="number" id="update-current-meter-input" class="gemini-input py-2 text-sm">
                             </div>
                             <div class="col-span-2 sm:col-span-1">
-                                <label class="text-[10px] text-gray-500 uppercase ml-2">Interval Unit</label>
-                                <label for="update-service-interval-unit-select" class="text-[10px] text-gray-500 uppercase ml-2">Interval Unit</label>
+                                <label for="update-service-interval-unit-select" class="text-[10px] text-gray-500 uppercase ml-2">Meter Unit</label>
                                 <select id="update-service-interval-unit-select" class="gemini-input py-2 text-sm">
-                                    <option value="days">Days</option>
+                                    <!-- <option value="days">Days</option> -->
                                     <option value="hours">Hours</option>
                                     <option value="km">Kilometers</option>
                                 </select>
                             </div>
                             <div class="col-span-2">
-                                <label class="text-[10px] text-gray-500 uppercase ml-2">Last Service Date</label>
                                 <label for="update-last-service-date-input" class="text-[10px] text-gray-500 uppercase ml-2">Last Service Date</label>
                                 <input type="date" id="update-last-service-date-input" class="gemini-input py-2 text-sm">
                             </div>
@@ -144,11 +196,9 @@
                 <!-- Print Tab Content -->
                 <div id="details-print-content" class="hidden space-y-4">
                     <div>
-                        <label class="text-[10px] text-gray-500 uppercase ml-2">Copyable Service History</label>
-                        <label for="printable-text-area" class="text-[10px] text-gray-500 uppercase ml-2">Copyable Service History</label>
-                        <textarea id="printable-text-area" rows="10" class="gemini-input font-mono text-xs" readonly></textarea>
+                        <div id="printable-html-area" class="bg-white rounded-xl"></div>
                     </div>
-                    <button onclick="copyPrintableText()" class="gemini-btn w-full py-2 text-sm">Copy to Clipboard</button>
+                    <button onclick="printServiceHistory()" class="gemini-btn w-full py-2 text-sm">Print Service History</button>
                 </div>
             </div>
         </div>
@@ -206,12 +256,10 @@
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
                     <label for="new-machine-name" class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
                     <input type="text" id="new-machine-name" placeholder="e.g. Case IH Magnum" class="gemini-input">
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-400 uppercase ml-2">Assign to Farm</label>
                     <label for="new-machine-farm-select" class="text-[10px] text-gray-400 uppercase ml-2">Assign to Farm</label>
                     <select id="new-machine-farm-select" class="gemini-input">
                         <option value="">Loading Farms...</option>
@@ -219,21 +267,20 @@
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-[10px] text-gray-400 uppercase ml-2">Service Interval (days)</label>
-                        <label for="new-machine-service-interval" class="text-[10px] text-gray-400 uppercase ml-2">Service Interval (days)</label>
-                        <input type="number" id="new-machine-service-interval" placeholder="e.g. 250" class="gemini-input">
+                        <label for="new-machine-current-meter" class="text-[10px] text-gray-400 uppercase ml-2">Current Meter</label>
+                        <input type="number" id="new-machine-current-meter" placeholder="e.g. 1250" class="gemini-input">
                     </div>
-                    <div>
-                        <label class="text-[10px] text-gray-400 uppercase ml-2">Last Service Date</label>
-                        <label for="new-machine-last-service-date" class="text-[10px] text-gray-400 uppercase ml-2">Last Service Date</label>
-                        <input type="date" id="new-machine-last-service-date" class="gemini-input">
+                    <div class="col-span-2">
+                        <label for="new-machine-service-interval-unit" class="text-[10px] text-gray-400 uppercase ml-2">Meter Unit</label>
+                        <select id="new-machine-service-interval-unit" class="gemini-input">
+                            <option value="hours">Hours</option>
+                            <option value="km">Kilometers</option>
+                        </select>
                     </div>
                 </div>
-                <div>
-                    <label class="text-[10px] text-gray-400 uppercase ml-2">Notes (Optional)</label>
+                <div class="col-span-2">
                     <label for="new-machine-notes" class="text-[10px] text-gray-400 uppercase ml-2">Notes (Optional)</label>
                     <textarea id="new-machine-notes" rows="2" placeholder="Initial notes..." class="gemini-input"></textarea>
-                    </select>
                 </div>
                 <button onclick="saveMachine()" class="gemini-btn w-full py-4 mt-4">Save Machine</button>
             </div>
@@ -248,7 +295,6 @@
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] text-gray-500 uppercase ml-2">Nickname</label>
                     <label for="update-nickname-input" class="text-[10px] text-gray-500 uppercase ml-2">Nickname</label>
                     <input type="text" id="update-nickname-input" placeholder="e.g. Johnny" class="gemini-input">
                 </div>
@@ -265,19 +311,16 @@
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] text-gray-400 uppercase ml-2">Machine Hours (from meter)</label>
                     <label for="log-machine-hours" class="text-[10px] text-gray-400 uppercase ml-2">Machine Hours (from meter)</label>
                     <input type="number" id="log-machine-hours" placeholder="e.g. 430" class="gemini-input">
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-400 uppercase ml-2">Serviced By</label>
                     <label for="log-servicer-select" class="text-[10px] text-gray-400 uppercase ml-2">Serviced By</label>
                     <select id="log-servicer-select" class="gemini-input">
                         <option value="">Loading...</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-400 uppercase ml-2">Service Type</label>
                     <label for="log-service-type" class="text-[10px] text-gray-400 uppercase ml-2">Service Type</label>
                     <select id="log-service-type" class="gemini-input">
                         <option value="Minor">Minor Service</option>
@@ -405,7 +448,7 @@
             document.getElementById('unassigned-msg').classList.add('hidden');
             
             // We need to join with the farms table to check if the farm is active.
-            let query = _supabase.from('machinery').select('*, farm:farms(is_active)');
+            let query = _supabase.from('machinery').select('*, farm:farms(is_active), notes, service_history');
             
             if (!myProfile.is_admin) query = query.eq('farm_id', myProfile.farm_id);
             
@@ -413,24 +456,6 @@
             let { data } = await query;
 
             data = (data || []).filter(m => m.farm === null || m.farm.is_active === true);
-
-            // Helper function to calculate service priority
-            const calculatePriority = (machine) => {
-                const calculatePriority = (machine) => {
-                    if (!machine.service_interval || machine.service_interval <= 0) {
-                        return -Infinity; // Machines without an interval go to the bottom.
-                    }
-                    let current_hours = 0;
-                    if (machine.last_service_date) {
-                        const lastServiceTime = new Date(machine.last_service_date).getTime();
-                        const now = new Date().getTime();
-                        current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
-                    }
-                    return current_hours / machine.service_interval;
-                };
-
-                return calculatePriority(machine);
-            };
 
             // Group machinery by farm
             const groupedByFarm = (data || []).reduce((acc, machine) => {
@@ -442,9 +467,9 @@
                 return acc;
             }, {});
 
-            // Sort machinery within each group by service priority
+            // Sort machinery within each group alphabetically
             for (const farmId in groupedByFarm) {
-                groupedByFarm[farmId].sort((a, b) => calculatePriority(b) - calculatePriority(a));
+                groupedByFarm[farmId].sort((a, b) => a.name.localeCompare(b.name));
             }
 
             // Get a sorted list of farm IDs to display them in order
@@ -480,54 +505,36 @@
                 const machinesHtml = machines.map(m => {
                 const displayFarmName = allFarms.find(f => f.id === m.farm_id)?.name || 'Unknown Farm';
                 let serviceStatus = { color: 'bg-gray-700', text: 'N/A' };
-                
-                // --- REAL-TIME USAGE CALCULATION ---
-                // This calculation is currently based on days. We will adjust this.
-                let current_hours = 0;
-                if (m.last_service_date) {
-                    const lastServiceTime = new Date(m.last_service_date).getTime();
-                    const now = new Date().getTime();
-                    current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
-                }
-                // --- END REAL-TIME CALCULATION ---
 
                 let lastServiceText = "No service history";
-                let dueText = "Interval not set";
-                let dueClass = "text-gray-400";
-                const intervalUnit = m.service_interval_unit || 'days';
-                const intervalUnitLabel = intervalUnit.charAt(0).toUpperCase() + intervalUnit.slice(1);
-                const currentMeter = m.current_meter || 0;
+                let lastNoteText = "No recent notes.";
+                const serviceHistoryArray = (m.service_history || '').split('\n').filter(n => n.trim() !== '');
+                const notesArray = (m.notes || '').split('\n').filter(n => n.trim() !== '');
 
-                if (m.service_interval > 0) {
-                    const lastServiceMeter = getLastServiceMeter(m.notes);
-                    const nextServiceDueAt = lastServiceMeter + m.service_interval;
-                    const remaining = nextServiceDueAt - currentMeter;
-
-                    if (m.last_service_date) {
-                        const lastServiceDate = new Date(m.last_service_date);
-                        lastServiceText = `Last Service: ${lastServiceDate.toLocaleDateString()}`;
-                        
-                        if (remaining <= 0) {
-                            dueText = `Due ${Math.abs(remaining)} ${intervalUnitLabel} ago`;
-                            dueClass = "text-red-400";
-                        } else if (remaining <= (m.service_interval * 0.1)) { // Due within 10% of interval
-                            dueText = `Due in ${remaining} ${intervalUnitLabel}`;
-                            dueClass = "text-yellow-400";
-                        } else {
-                            dueText = `Due in ${remaining} ${intervalUnitLabel}`;
-                            dueClass = "text-green-400";
-                        }
-                    } else {
-                        lastServiceText = "No service on record";
-                        dueText = `Service due at ${m.service_interval} ${intervalUnitLabel}`;
-                    }
+                const lastServiceLog = serviceHistoryArray[0]; // The first line is the most recent
+                if (lastServiceLog) {
+                    const parts = lastServiceLog.replace('[Serviced at ', '').replace(']', '').split(' | ');
+                    // Format: [Serviced at 2/27/2024, 10:00:00 AM | 1250 hours | Major | John Deere | Replaced filter]
+                    const date = parts[0] || '';
+                    const hours = parts[1] || '';
+                    const type = parts[2] || 'Service';
+                    lastServiceText = `<span class="font-bold text-green-400">${type}</span> at ${hours} on ${date.split(',')[0]}`;
                 }
 
+                const lastRegularNote = notesArray[0]; // The first line is the most recent
+                if (lastRegularNote) {
+                    const match = lastRegularNote.match(/^\[(.*?)\]\s*(.*)$/);
+                    const noteText = match ? (match[2] || '').trim() : lastRegularNote;
+                    lastNoteText = `Note: "${noteText}"`;
+                }
+
+                const intervalUnit = m.service_interval_unit || 'hours';
+                const currentMeter = m.current_meter || 0;
                 const unitLabel = intervalUnit.toUpperCase();
 
                 return `
-                <div onclick='openDetailsModal(${JSON.stringify(m)})' 
-                     class="gemini-card rounded-3xl p-6 group flex flex-col justify-between">
+                <div onclick='openDetailsModal(${JSON.stringify(m).replace(/'/g, "&apos;")})' 
+                     class="gemini-card rounded-3xl p-6 group flex flex-col justify-between min-h-[240px]">
                     <div>
                         <h3 class="text-xl font-bold group-hover:text-blue-400 transition-colors cursor-pointer">${m.name}</h3>
                         <p class="text-3xl font-black mt-2" title="Current Meter Reading">
@@ -539,8 +546,9 @@
                             <p class="text-[10px] text-gray-600 uppercase font-bold">${displayFarmName}</p>
                             <span class="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">View Details &rarr;</span>
                         </div>
-                        <div class="text-xs text-gray-400 mt-2">
-                            <p>${lastServiceText}</p>
+                        <div class="text-xs text-gray-400 mt-2 space-y-1">
+                            <p class="truncate" title="${lastServiceText.replace(/<[^>]*>?/gm, '')}">${lastServiceText}</p>
+                            <p class="truncate" title="${lastNoteText.replace(/<[^>]*>?/gm, '')}">${lastNoteText}</p>
                         </div>
                     </div>
                 </div>`;
@@ -572,14 +580,6 @@
             selectedMachineId = machine.id;
             selectedMachineData = machine; // Store for later use (e.g., printing)
 
-            // Use the same real-time calculation as the main grid for consistency
-            let current_hours = 0;
-            if (machine.last_service_date) {
-                const lastServiceTime = new Date(machine.last_service_date).getTime();
-                const now = new Date().getTime();
-                current_hours = Math.floor((now - lastServiceTime) / (1000 * 60 * 60 * 24));
-            }
-
             const farmName = allFarms.find(f => f.id === machine.farm_id)?.name || machine.farm_id;
             document.getElementById('details-name').innerText = machine.name;
             document.getElementById('details-farm-id').innerText = `Location: ${farmName}`;
@@ -588,12 +588,17 @@
             const notesContentEl = document.getElementById('details-notes-content');
             notesContentEl.innerHTML = ''; // Clear previous content
 
-            if (machine.notes && machine.notes.trim()) {
-                const notesArray = machine.notes.split('\n').filter(note => note.trim() !== '');
-                notesContentEl.innerHTML = notesArray.map(note => {
-                    const isServiceLog = note.startsWith('[Serviced at');
-                    
-                    if (isServiceLog) {
+            const serviceHistoryArray = (machine.service_history || '').split('\n').filter(note => note.trim() !== '');
+            const notesArray = (machine.notes || '').split('\n').filter(note => note.trim() !== '');
+            const combinedNotes = [
+                ...serviceHistoryArray.map(note => ({ type: 'service', content: note })),
+                ...notesArray.map(note => ({ type: 'note', content: note }))
+            ].sort((a, b) => new Date(b.content.match(/\[(.*?)\]/)?.[1] || 0) - new Date(a.content.match(/\[(.*?)\]/)?.[1] || 0));
+
+            if (combinedNotes.length > 0) {
+                notesContentEl.innerHTML = combinedNotes.map(item => {
+                    if (item.type === 'service') {
+                        const note = item.content;
                         const content = note.replace('[', '').replace(']', '');
                         const parts = content.split(' | ');
                         const timestamp = parts[0]?.replace('Serviced at ', '') || 'N/A';
@@ -609,6 +614,7 @@
                                 <p class="text-[10px] text-gray-400 mt-1 text-right">${timestamp}</p>
                             </div>`;
                     } else {
+                        const note = item.content;
                         const match = note.match(/^\[(.*?)\]\s*(.*)$/);
                         const timestamp = match ? match[1] : 'Just now';
                         const noteText = match ? (match[2] || '').trim() : note;
@@ -626,7 +632,7 @@
             // Set edit fields
             document.getElementById('update-name-input').value = machine.name;
             document.getElementById('update-current-meter-input').value = machine.current_meter || 0;
-            document.getElementById('update-service-interval-unit-select').value = machine.service_interval_unit || 'days';
+            document.getElementById('update-service-interval-unit-select').value = machine.service_interval_unit || 'hours';
             document.getElementById('update-last-service-date-input').value = machine.last_service_date || '';
             document.getElementById('update-notes-input').value = machine.notes || '';
             document.getElementById('add-note-textarea').value = ''; // Clear quick note field
@@ -684,8 +690,8 @@
                 editContent.classList.remove('hidden');
                 tabEditBtn.classList.add('border-blue-500', 'text-white');
             } else if (tab === 'print') {
-                printContent.classList.remove('hidden');
-                generatePrintableText(); // Generate the text when tab is opened
+                printContent.classList.remove('hidden'); 
+                generatePrintableHtml(); // Generate the HTML when tab is opened
                 tabPrintBtn.classList.add('border-blue-500', 'text-white');
             }
         }
@@ -747,15 +753,15 @@
         async function saveMachine() {
             const name = document.getElementById('new-machine-name').value;
             const farm_id = document.getElementById('new-machine-farm-select').value;
-            const service_interval = document.getElementById('new-machine-service-interval').value;
-            const last_service_date = document.getElementById('new-machine-last-service-date').value;
+            const current_meter = document.getElementById('new-machine-current-meter').value;
+            const service_interval_unit = document.getElementById('new-machine-service-interval-unit').value;
             const notes = document.getElementById('new-machine-notes').value;
             if (!name || !farm_id) return alert("Name and Farm selection required.");
-            const { error } = await _supabase.from('machinery').insert([{ 
+            const { error } = await _supabase.from('machinery').insert([{
                 name,
                 farm_id,
-                service_interval: parseInt(service_interval) || null,
-                last_service_date: last_service_date || null,
+                current_meter: parseInt(current_meter) || 0,
+                service_interval_unit: service_interval_unit,
                 notes
             }]);
             if (error) alert(error.message); else { closeAddModal(); loadFleet(); }
@@ -806,23 +812,24 @@
             if (!hours) return alert("Machine hours are required to log a service.");
             if (!servicer) return alert("Servicer is required.");
 
-            const { data: machine } = await _supabase.from('machinery').select('notes').eq('id', selectedMachineId).single();
+            const { data: machine } = await _supabase.from('machinery').select('service_history').eq('id', selectedMachineId).single();
             if (!machine) return alert("Could not find machine to update.");
 
             const now = new Date();
-            const timestamp = now.toLocaleString('en-GB', { hour12: false });
+            const timestamp = now.toLocaleString(); // Use a standard format for sorting
             
             let logEntry = `[Serviced at ${timestamp} | ${hours} hours | ${type} | ${servicer}`;
             if (notes) logEntry += ` | ${notes}`;
             logEntry += ']';
 
-            const updatedNotes = machine.notes ? `${logEntry}\n${machine.notes}` : logEntry;
+            const updatedHistory = machine.service_history ? `${logEntry}\n${machine.service_history}` : logEntry;
 
             const { error } = await _supabase.from('machinery')
                 .update({ 
                     last_service_date: now.toISOString().split('T')[0], // Set service date to today
-                    notes: updatedNotes,
-                    current_meter: parseInt(hours) // Update the main meter reading
+                    service_history: updatedHistory,
+                    current_meter: parseInt(hours), // Update the main meter reading
+
                 })
                 .eq('id', selectedMachineId);
 
@@ -841,7 +848,7 @@
             const newNoteText = document.getElementById('add-note-textarea').value.trim();
             if (!newNoteText) return;
 
-            const { data: machine } = await _supabase.from('machinery').select('notes').eq('id', selectedMachineId).single();
+            const { data: machine, error: fetchError } = await _supabase.from('machinery').select('notes').eq('id', selectedMachineId).single();
             if (!machine) return alert("Could not find machine.");
 
             const timestamp = new Date().toLocaleString();
@@ -860,61 +867,62 @@
         }
 
         // [ID_JS_PRINT_HISTORY]
-        function generatePrintableText() {
-            const textArea = document.getElementById('printable-text-area');
+        function generatePrintableHtml() {
+            const container = document.getElementById('printable-html-area');
             if (!selectedMachineData) {
-                textArea.value = "No machine data available.";
+                container.innerHTML = `<div class="print-container"><p>No machine data available.</p></div>`;
                 return;
             }
 
             const machine = selectedMachineData;
-            const serviceLogs = (machine.notes || '')
+            const unitLabel = (machine.service_interval_unit || 'hours');
+            const serviceLogs = (machine.service_history || '')
                 .split('\n')
-                .filter(note => note.startsWith('[Serviced at'));
+                .filter(note => note.trim().startsWith('[Serviced at'));
 
-            if (serviceLogs.length === 0) {
-                textArea.value = `No service history found for ${machine.name}.`;
-                return;
-            }
-
-            const headers = ["Date", "Tractor", "Type", "Servicer", "Notes"];
-            const tableData = serviceLogs.map(note => {
+            const tableRows = serviceLogs.map(note => {
                 const parts = note.replace('[Serviced at ', '').replace(']', '').split(' | ');
                 const [date, hours, type, servicer, serviceNote] = parts;
-                return [
-                    date || '',
-                    `${machine.name} (${hours || ''})`,
-                    type || '',
-                    servicer || '',
-                    serviceNote || 'N/A'
-                ];
-            });
+                const meterReading = (hours || '').replace(' hours', '');
+                const badgeClass = (type || '').toLowerCase();
 
-            // Calculate the maximum width for each column
-            const columnWidths = headers.map((header, i) => {
-                const dataWidths = tableData.map(row => row[i].length);
-                return Math.max(header.length, ...dataWidths);
-            });
+                return `
+                    <tr>
+                        <td>${(date || '').split(',')[0]}</td>
+                        <td>${meterReading} ${unitLabel}</td>
+                        <td><span class="badge ${badgeClass}">${type || 'N/A'}</span></td>
+                        <td>${servicer || 'N/A'}</td>
+                        <td>${serviceNote || ''}</td>
+                    </tr>
+                `;
+            }).join('');
 
-            // Helper function to create a padded row
-            const createRow = (rowData) => {
-                return rowData.map((cell, i) => {
-                    return cell.padEnd(columnWidths[i]);
-                }).join(' | ');
-            };
+            const tableBody = serviceLogs.length > 0 ? tableRows : `<tr><td colspan="5" style="text-align:center; padding: 20px;">No service history found.</td></tr>`;
 
-            const headerRow = createRow(headers);
-            const separatorRow = columnWidths.map(width => '-'.repeat(width)).join('-|-');
-            const dataRows = tableData.map(row => createRow(row)).join('\n');
-
-            textArea.value = `${headerRow}\n${separatorRow}\n${dataRows}`;
+            const html = `
+                <div class="print-container">
+                    <div class="print-header">
+                        <h1>Service History</h1>
+                        <p><strong>Machine:</strong> ${machine.name}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="col-date">Date</th>
+                                <th class="col-meter">Meter</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-provider">Servicer</th>
+                                <th class="col-notes">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableBody}</tbody>
+                    </table>
+                </div>`;
+            container.innerHTML = html;
         }
 
-        function copyPrintableText() {
-            const textArea = document.getElementById('printable-text-area');
-            textArea.select();
-            document.execCommand('copy');
-            alert("Service history copied to clipboard!");
+        function printServiceHistory() {
+            window.print();
         }
 
         // [ID_JS_FARM_MGMT]
@@ -964,14 +972,6 @@
             if (error) alert(error.message); else { alert("Farm renamed."); loadFarms(); }
         }
 
-        async function createNewFarm() {
-            const name = document.getElementById('new-farm-name').value.trim();
-            if (!name) return alert("Farm name required.");
-            const { error } = await _supabase.from('farms').insert([{ name }]);
-            if (error) alert(error.message); else { document.getElementById('new-farm-name').value = ""; await showFarmManagement(); }
-        }
-
-        // [ID_JS_CREATE_FARM]
         async function createNewFarm() {
             const name = document.getElementById('new-farm-name').value.trim();
             if (!name) return alert("Farm name required.");
