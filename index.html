@@ -136,6 +136,11 @@
                 <h2 class="text-xl text-[#8e918f]">Account Pending.</h2>
                 <p class="text-sm mt-2">An admin needs to assign your farm before you can see machinery.</p>
             </div>
+            <div id="fleet-controls" class="hidden flex justify-end items-center mb-4">
+                <div class="w-1/4">
+                    <input type="text" id="fleet-search" onkeyup="filterFleet()" placeholder="Search..." class="gemini-input text-sm py-2">
+                </div>
+            </div>
             <div id="machinery-grid" class="space-y-12"></div>
         </main>
     </div>
@@ -194,6 +199,10 @@
                         <div>
                             <label for="update-name-input" class="text-[10px] text-gray-500 uppercase ml-2">Machine Name</label>
                             <input type="text" id="update-name-input" class="gemini-input py-2 text-sm">
+                        </div>
+                        <div>
+                            <label for="update-vehicle-description-input" class="text-[10px] text-gray-500 uppercase ml-2">Vehicle Description</label>
+                            <input type="text" id="update-vehicle-description-input" placeholder="e.g. 4WD, 3-Point Hitch" class="gemini-input py-2 text-sm">
                         </div>
                         <div>
                             <label for="update-farm-select" class="text-[10px] text-gray-500 uppercase ml-2">Move to Farm</label>
@@ -487,6 +496,23 @@
                 </div>`;
         }
 
+        // [ID_JS_FILTER_FLEET]
+        function filterFleet() {
+            const searchTerm = document.getElementById('fleet-search').value.toLowerCase();
+            const machineCards = document.querySelectorAll('#machinery-grid .gemini-card');
+
+            machineCards.forEach(card => {
+                const machineName = card.querySelector('h3').innerText.toLowerCase();
+                const machineDescription = (card.querySelector('p[title]')?.title || '').toLowerCase();
+                const farmGroup = card.closest('.farm-group');
+                if (machineName.includes(searchTerm) || machineDescription.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
         // [ID_JS_LOAD_FLEET]
         async function loadFleet() {
             if (!myProfile.farm_id && !myProfile.is_admin) {
@@ -542,7 +568,14 @@
             });
 
             const grid = document.getElementById('machinery-grid');
-            grid.innerHTML = sortedFarmIds.map(farmId => {
+            const fleetControls = document.getElementById('fleet-controls');
+
+            if (sortedFarmIds.length > 0) {
+                fleetControls.classList.remove('hidden');
+            } else {
+                fleetControls.classList.add('hidden');
+            }
+            grid.innerHTML = sortedFarmIds.map((farmId, index) => {
                 const farm = allFarms.find(f => f.id === farmId);
                 const farmName = farm ? farm.name : 'Unassigned';
                 const machines = groupedByFarm[farmId];
@@ -594,12 +627,13 @@
                 const unitLabel = intervalUnit.toUpperCase();
 
                 let serviceDueHtml = serviceDue ? `<p class="text-sm text-gray-400 mt-1" title="Service Due At">Service due: ${serviceDue} ${unitLabel}</p>` : '';
-
+                
                 return `
                 <div onclick='openDetailsModal(${JSON.stringify(m).replace(/'/g, "&apos;")})' 
-                     class="gemini-card rounded-3xl p-6 group flex flex-col justify-between min-h-[240px]">
+                     class="gemini-card rounded-3xl p-6 group flex flex-col justify-between min-h-[260px]">
                     <div>
-                        <h3 class="text-xl font-bold group-hover:text-blue-400 transition-colors cursor-pointer">${m.name}</h3>
+                        <h3 class="text-xl font-bold gemini-blue group-hover:text-white transition-colors cursor-pointer">${m.name}</h3>
+                        <p class="text-sm text-gray-400 mt-1 mb-4 h-5 truncate" title="${m.vehicle_description || ''}">${m.vehicle_description || ''}</p>
                         <div class="mt-2">
                             <p class="text-3xl font-black" title="Current Meter Reading">${currentMeter} <span class="text-base font-bold text-gray-400">${unitLabel}</span></p>
                             ${serviceDueHtml}
@@ -618,10 +652,10 @@
                 </div>`;
                 }).join('');
 
-                return `
-                    <div>
+                 return `
+                    <div class="farm-group">
                         <h2 class="text-2xl font-bold tracking-tight mb-4 pb-4 border-b border-gray-800">${farmName}</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 machine-list">
                             ${machinesHtml}
                         </div>
                     </div>`;
@@ -652,12 +686,12 @@
             const notesContentEl = document.getElementById('details-notes-content');
             notesContentEl.innerHTML = ''; // Clear previous content
 
-            const serviceHistoryArray = (machine.service_history || '').split('\n').filter(note => note.trim() !== '');
-            const notesArray = (machine.notes || '').split('\n').filter(note => note.trim() !== '');
+            const serviceHistoryArray = (machine.service_history || '').split('\n').filter(note => note.trim() !== '' && note.includes('[Serviced at'));
+            const notesArray = (machine.notes || '').split('\n').filter(note => note.trim() !== '' && note.startsWith('['));
             const combinedNotes = [
                 ...serviceHistoryArray.map(note => ({ type: 'service', content: note })),
                 ...notesArray.map(note => ({ type: 'note', content: note }))
-            ].sort((a, b) => new Date(b.content.match(/\[(.*?)\]/)?.[1] || 0) - new Date(a.content.match(/\[(.*?)\]/)?.[1] || 0));
+            ].sort((a, b) => new Date(b.content.match(/\[(?:Serviced at )?(.*?) \|/)?.[1] || b.content.match(/^\[(.*?)\]/)?.[1] || 0) - new Date(a.content.match(/\[(?:Serviced at )?(.*?) \|/)?.[1] || a.content.match(/^\[(.*?)\]/)?.[1] || 0));
 
             if (combinedNotes.length > 0) {
                 notesContentEl.innerHTML = combinedNotes.map(item => {
@@ -680,7 +714,7 @@
                     } else {
                         const note = item.content;
                         const match = note.match(/^\[(.*?)\]\s*(.*)$/);
-                        const timestamp = match ? match[1] : 'Just now';
+                        const timestamp = match ? new Date(match[1]).toLocaleString() : 'Just now';
                         const noteText = match ? (match[2] || '').trim() : note;
                         return `
                             <div class="note-bubble self-end bg-gray-700/50 p-3 rounded-lg mb-2">
@@ -695,6 +729,7 @@
 
             // Set edit fields
             document.getElementById('update-name-input').value = machine.name;
+            document.getElementById('update-vehicle-description-input').value = machine.vehicle_description || '';
             document.getElementById('update-service-interval-unit-select').value = machine.service_interval_unit || 'hours';
             document.getElementById('update-notes-input').value = machine.notes || '';
             document.getElementById('add-note-textarea').value = ''; // Clear quick note field
@@ -844,6 +879,7 @@
        async function updateMachineRecord() {
             if (!selectedMachineId) return;
             const newName = document.getElementById('update-name-input').value;
+            const newVehicleDescription = document.getElementById('update-vehicle-description-input').value;
             const newFarmId = document.getElementById('update-farm-select').value;
             const newServiceIntervalUnit = document.getElementById('update-service-interval-unit-select').value;
             const newNotes = document.getElementById('update-notes-input').value;
@@ -851,6 +887,7 @@
             const { error } = await _supabase.from('machinery')
                 .update({ 
                     name: newName,
+                    vehicle_description: newVehicleDescription,
                     farm_id: newFarmId,
                     notes: newNotes,
                     service_interval_unit: newServiceIntervalUnit
