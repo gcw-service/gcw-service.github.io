@@ -346,6 +346,10 @@
             </div>
             <div class="space-y-4">
                 <div>
+                    <label for="log-service-date" class="text-[10px] text-gray-400 uppercase ml-2">Service Date</label>
+                    <input type="date" id="log-service-date" class="gemini-input">
+                </div>
+                <div>
                     <label for="log-machine-hours" class="text-[10px] text-gray-400 uppercase ml-2">Machine Hours (from meter)</label>
                     <input type="number" id="log-machine-hours" placeholder="e.g. 430" class="gemini-input">
                 </div>
@@ -839,6 +843,7 @@
             document.getElementById('settings-modal').classList.remove('hidden');
         }
         async function openLogServiceModal() {
+            document.getElementById('log-service-date').value = new Date().toISOString().split('T')[0];
             document.getElementById('log-machine-hours').value = '';
             document.getElementById('log-service-notes').value = '';
             document.getElementById('log-service-type').value = 'Minor';
@@ -944,19 +949,21 @@
         async function submitNewServiceLog() {
             if (!selectedMachineId) return alert("No machine selected.");
 
+            const serviceDate = document.getElementById('log-service-date').value;
             const hours = document.getElementById('log-machine-hours').value;
             const servicer = document.getElementById('log-servicer-select').value;
             const type = document.getElementById('log-service-type').value;
             const notes = document.getElementById('log-service-notes').value.trim();
 
+            if (!serviceDate) return alert("Service date is required.");
             if (!hours) return alert("Machine hours are required to log a service.");
             if (!servicer) return alert("Servicer is required.");
 
             const { data: machine } = await _supabase.from('machinery').select('service_history').eq('id', selectedMachineId).single();
             if (!machine) return alert("Could not find machine to update.");
 
-            const now = new Date();
-            const timestamp = now.toLocaleString(); // Use a standard format for sorting
+            // Format the timestamp for the history log using the selected date
+            const timestamp = new Date(serviceDate + 'T12:00:00').toLocaleString();
             
             let logEntry = `[Serviced at ${timestamp} | ${hours} hours | ${type} | ${servicer}`;
             if (notes) logEntry += ` | ${notes}`;
@@ -966,7 +973,7 @@
 
             const { error } = await _supabase.from('machinery')
                 .update({ 
-                    last_service_date: now.toISOString().split('T')[0], // Set service date to today
+                    last_service_date: serviceDate,
                     service_history: updatedHistory,
                     current_meter: parseInt(hours), // Update the main meter reading
 
