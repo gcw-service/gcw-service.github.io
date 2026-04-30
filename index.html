@@ -217,6 +217,11 @@
                             </select>
                         </div>
                         <div>
+                            <label for="update-service-history-input" class="text-[10px] text-gray-500 uppercase ml-2">Service History (Raw)</label>
+                            <textarea id="update-service-history-input" placeholder="Raw service logs..." rows="4" class="gemini-input py-2 text-sm font-mono"></textarea>
+                        </div>
+                        <div>
+                            <label for="update-notes-input" class="text-[10px] text-gray-500 uppercase ml-2">General Notes</label>
                             <textarea id="update-notes-input" placeholder="Service notes, operational quirks, etc." rows="3" class="gemini-input py-2 text-sm"></textarea>
                         </div>
                         <button onclick="updateMachineRecord()" class="gemini-btn w-full py-2 text-sm">Save All Changes</button>
@@ -735,6 +740,7 @@
             document.getElementById('update-name-input').value = machine.name;
             document.getElementById('update-vehicle-description-input').value = machine.vehicle_description || '';
             document.getElementById('update-service-interval-unit-select').value = machine.service_interval_unit || 'hours';
+            document.getElementById('update-service-history-input').value = machine.service_history || '';
             document.getElementById('update-notes-input').value = machine.notes || '';
             document.getElementById('add-note-textarea').value = ''; // Clear quick note field
             // Set add tab fields
@@ -887,6 +893,7 @@
             const newVehicleDescription = document.getElementById('update-vehicle-description-input').value;
             const newFarmId = document.getElementById('update-farm-select').value;
             const newServiceIntervalUnit = document.getElementById('update-service-interval-unit-select').value;
+            const newServiceHistory = document.getElementById('update-service-history-input').value;
             const newNotes = document.getElementById('update-notes-input').value;
 
             const { error } = await _supabase.from('machinery')
@@ -894,6 +901,7 @@
                     name: newName,
                     vehicle_description: newVehicleDescription,
                     farm_id: newFarmId,
+                    service_history: newServiceHistory,
                     notes: newNotes,
                     service_interval_unit: newServiceIntervalUnit
                 })
